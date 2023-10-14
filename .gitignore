@@ -48,5 +48,8 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
-#Mac desktop files 
+# Mac desktop files 
 .DS_Store
+
+# generated html
+*.html
