@@ -1,77 +1,110 @@
 ---
 title: "Descriptive Analysis"
-output: html_document
+output: 
+  pdf_document:
+    toc: TRUE
+author: Marco Galliani
 ---
 
-## The dataset
-The statistical units are the bombs exploded in the first 24 hours of the bombing of London, on September 7th, 1940. For each bomb the following informations are provided:
-- Order
-- Time (IB: Incendiary Bomb, EB: Explosive Bomb, COB: Crude Oil Bomb)
-- Location
-- Type of bomb
-- Damage or other details ("Damage.or.other.details..All.dimensions.at.in.ft.unless.stated.")           )
-
-We got data about 843 bombs.
-
-Loading:
+## Settings
 ```{r}
-data_path <- "../data/September 7, 1940_ first night of the Blitz - SEPT 7, ALL REPORTS.csv"
-bomb_data <- read.csv(file = data_path)
-bomb_data$X <- NULL
+rm(list = ls())
+bomb_data <- read.csv("../data/geocoded_bomb_data.csv")
 
-colnames(bomb_data) <- c("Order", "Time", "Location", "Type.of.bomb", "Damage.or.other")
-```
+bomb_data$Time <- as.POSIXct(bomb_data$Time)
 
-## Preprocessing:
-- coverting strings into POSIX type
-```{r}
-bomb_data$Time <- strptime(bomb_data$Time, format = "%H:%M")
-```
-- getting Latitude and Longitude from the addresses [(geocoding)](https://www.r-bloggers.com/2023/03/how-to-geocode-in-r-for-free/)
-```{r eval=FALSE, include=FALSE}
-library(tidyverse)
-library(sf)
-library(mapview)
-
-geocodes <- tidygeocoder::geocode(
-              .tbl = bomb_data,
-              address = Location,
-              method = "osm"
-            )
-  
-```
-- cleaning duplicates in type of bomb
-```{r}
+bomb_data$district <- as.factor(bomb_data$district)
 bomb_data$Type.of.bomb <- as.factor(bomb_data$Type.of.bomb)
 
-levels(bomb_data$Type.of.bomb) <- list(IB = c("IB", "Ib", "IBIB"),
-                                       EB = c("EB", "EB ", "eb", "Eb", "High Explosive Bomb"),
-                                       EB.and.IB = c("EB & IB", "EB &IB", "EB &IB", "IB & EB", "IB and EB"),
-                                       Magnesium.Flare = c("Magnesium Flare"),
-                                       Shrapnel = c("Shrapnel"),
-                                       COB = c("COB", "Crude oil bomb"),
-                                       Crashed.Aircraft = c("Crashed aircraft"),
-                                       Unknow.enemy.action = c("Unknown enemy action"))
-
+head(bomb_data)
 ```
-
-```{r eval=FALSE, include=FALSE}
-write.csv(bomb_data, file = "../data/preprocessed_bombing.csv")
-```
-
 
 ## Descriptive analysis
-```{r}
-#Time
-hist(bomb_data$Time, breaks = "hours", las=2)
 
+### Explosive event type 
+We got the following types of bombs
+- Explosive Bombs (EB)
+- Incendiary Bombs (IB)
+- Magnesium Flare
+- Crude Oil Bomb (COB)
+- Shrapnel
+- Unknown enemy action
+- Crashed aircraft
+
+Moreover we got 67 NAs
+```{r}
+summary(bomb_data$Type.of.bomb)
+```
+
+
+```{r}
 #Type of bomb
 barplot(table(bomb_data$Type.of.bomb), las=2)
+```
 
-#Type of bomb by time
+### Evolution in time
+All types of bombs
+```{r}
+hist(bomb_data$Time, breaks = "hours", las=2)
+```
+
+
+By bomb type
+```{r}
 hist(bomb_data[bomb_data$Type.of.bomb == "IB",]$Time, breaks = "hours", las=2)
 hist(bomb_data[bomb_data$Type.of.bomb == "EB",]$Time, breaks = "hours", las=2)
 hist(bomb_data[bomb_data$Type.of.bomb == "EB.and.IB",]$Time, breaks = "hours", las=2)
 hist(bomb_data[bomb_data$Type.of.bomb == "COB",]$Time, breaks = "hours", las=2)
-
 ```
+
+### Maps
+
+References
+- https://www.paulamoraga.com/tutorial-terra/#2_Vector_data
+- https://data.london.gov.uk/dataset/statistical-gis-boundary-files-london
+- https://conservancy.umn.edu/bitstream/handle/11299/220339/time-maps-tutorial-v2.html?sequence=3&isAllowed=y
+- https://rspatial.org/spatial/6-crs.html
+
+```{r warning=TRUE}
+library(terra)
+library(ggplot2)
+library(tidyterra)
+
+london_spat_vect <- vect("../data/London-data/London_Borough_Excluding_MHW.shp")
+london_spat_vect
+
+newcrs <- "+proj=longlat +datum=WGS84"
+london_spat_vect <- terra::project(london_spat_vect, newcrs)
+
+london_map <- ggplot(data = london_spat_vect) +
+  geom_spatvector() +
+  geom_sf(fill = "white")
+
+# adding data points
+explosion_sites <- london_map + 
+  geom_point(data = bomb_data[-c(367,459,745,395, 750,749),], 
+             aes(x = lon, y = lat, label = X, group = Time, col = Type.of.bomb)) +
+  scale_colour_brewer(palette = "Paired")
+explosion_sites
+
+
+greenwich <- london_map + 
+  geom_sf(fill = ifelse(london_map$data$NAME == "Greenwich", 'red', "white"))
+
+greenwich + geom_point(data = bomb_data[-c(367,459,745,395, 750,749),], 
+             aes(x = lon, y = lat, label = X, group = Time, col = district == "Greenwich" )) 
+```
+
+```{r eval=FALSE, warning=FALSE, include=FALSE}
+library(gganimate)
+
+explosion_sites_in_time <- explosion_sites +
+  transition_time(Time) + 
+  shadow_mark() +
+  ggtitle('Hour: {frame_time}',
+          subtitle = 'Frame {frame} of {nframes}')
+
+num_hours <- max(bomb_data$Time) - min(bomb_data$Time)
+animate(explosion_sites_in_time, nframes = round(num_hours*15))
+```
+

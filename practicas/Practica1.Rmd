@@ -1,0 +1,138 @@
+---
+title: "Practica 1: modelo Beta-Binomial"
+output: html_document
+---
+
+```{r}
+library(LearnBayes)
+
+data("PlantGrowth")
+
+PlantGrowth$group <- as.factor(PlantGrowth$group)
+PlantGrowth$deficientes <- as.factor(ifelse(PlantGrowth$weight <= 5, "deficiente", "no-deficiente"))
+
+head(PlantGrowth)
+dim(PlantGrowth)
+
+summary(PlantGrowth)
+```
+Funcion de verosimilitud
+
+
+
+## Apartado 1: priori y aposteriori
+Apriori de Jeffrey y calculo de la aposteriori
+
+Apriori de Jeffrey
+$$
+\pi(p) = \frac{1}{\sqrt{p(1-p)}}
+$$
+
+Verosimilitud
+$$
+L(p|x) = p^{\sum{x_i}}(1-p)^{n-\sum{x_i}}
+$$
+
+Aposteriori
+$$
+
+$$
+
+```{r}
+n <- length(PlantGrowth$deficientes)
+suma <- sum(PlantGrowth$deficientes == "deficiente")
+
+
+
+curve(dbeta(x, shape1 = suma + 1/2, shape2 = n - suma + 1/2))
+curve(dbeta(x, shape1 = 1/2, shape2 = 1/2), col = "red",add = T) #apriori de Jeffrey
+```
+
+Otros comandos
+```{r}
+a <- 0.5
+b <- 0.5
+
+s <- 13
+f <- 17
+
+par = c(a,b)
+triplot(par, c(s,f))
+```
+
+
+## Apartado 2: intervalo de credibiliad
+```{r}
+library(HDInterval)
+
+muestra=rbeta(10000, 13.5, 17.5)
+dens <- density(muestra)
+hdi(dens, credMass=0.90)
+```
+
+## Apartado 3: contrastes, Factor de Bayes
+Usando la a priori de Jeffrey, ¿Existen evidencias para afirmar que la proporcio ́n de rendimiento deficiente es menor de 0.3? Adjuntar los comandos correspondientes.
+```{r}
+# posteriors
+pp1 <- 1 - pbeta(0.3, a+s, f+b)
+pp0 <- pbeta(0.3, a+s, f+b)
+
+# priors
+p1 <- 1 - pbeta(0.3, a, b)
+p0 <- pbeta(0.3, a, b)
+
+# Factor de Bayes
+FB01 <- (pp0/pp1)*(p1/p0)
+FB01
+```
+
+Evidencia moderada para H1 (mirando la tabla de probabilidad)
+
+## Apartado 4: densidad predictiva
+Justificar y adjuntar script para calcular la probabilidad predictiva de tener al menos 5 terrenos con rendimiento deficiente de los pr ́oximos 10 que se sometan a estudio y representar en un gra ́fico la funcio ́n de probabilidad predictiva.
+
+$$
+p|x \sim Be(13.5, 17.5) \\
+
+\mathbb{P}(Y = k| \mathbb{X} = (13,17)) = \int_0^1 \mathbb{P}(Y = k| \mathbb{X} = (13,17), p)\pi(p|\mathbb{X}) dp 
+$$
+
+```{r}
+ab <- c(13+a, 17+b)
+
+# modelo predictivo
+m <- 10
+ys <- 0:10
+
+pred <- pbetap(ab, m, ys)
+pred <- round(pred, 3)
+
+pp <- cbind(ys, pred)
+pp
+
+sum(pred[ys>4])
+
+predplot(ab, 10, 5)
+```
+
+## Apartado 5: test de independencia
+¿Existen evidencias para afirmar que los tratamientos han influido en la mejora del rendimiento de los terrenos?
+
+Tenemos tres tratamientos
+```{r}
+table(PlantGrowth$group)
+```
+
+En el enfoque clasico el test seria un test multinomial. 
+
+En el enfoque Bayesiano: (desarollo teorico en el tema6)
+```{r}
+library(BayesFactor)
+
+tt <- table(PlantGrowth$deficientes, PlantGrowth$group)
+contingencyTableBF(tt, 
+                   sampleType = "indepMulti",
+                   fixedMargin = "cols",
+                   priorConcentration = 1)
+```
+

@@ -1,0 +1,164 @@
+---
+title: 'Practica 3: Inferencia Bayesiana en el modelo Normal'
+output:
+  html_document:
+    df_print: paged
+---
+
+## Data
+- 0 is male
+- 1 is female
+
+```{r}
+library(LearnBayes)
+
+data("birthweight")
+
+
+summary(birthweight)
+```
+
+
+## Disribucion de los pesos
+```{r}
+weight_males <- birthweight[birthweight$gender==0,]$weight
+weight_females <- birthweight[birthweight$gender==1,]$weight
+
+hist(weight_females)
+hist(weight_males)
+
+```
+
+Contrastes: Shapiro test
+```{r}
+shapiro.test(weight_females)
+shapiro.test(weight_males)
+```
+Podemos acceptar la hipotesis de Normalidad en los grupos
+
+## Inferencia Bayesiana en el modelo normal
+
+### Intervalos de credibilidad
+```{r}
+apriori_Jeffrey <- function(mu, sigma){
+  1/sigma
+}
+```
+
+Para niños
+```{r}
+library(HDInterval)
+library(invgamma)
+
+intervalo_male_z <-
+  hdi(qt(c(0.025,0.975), df = length(weight_males)))
+
+intervalo_male <- sqrt(var(weight_males)/length(weight_males))*intervalo_male_z + mean(weight_males)
+intervalo_male
+```
+
+Para niñas
+```{r}
+intervalo_female_z <-
+  hdi(qt(c(0.025,0.975), df = length(weight_females)))
+
+intervalo_female <- sqrt(var(weight_females)/length(weight_females))*intervalo_female_z + mean(weight_females)
+intervalo_female
+```
+
+### Contrastes de hipotesis
+$$
+
+H_0: \mu_1 = \mu2 \\
+H_1: \mu_1 \neq \mu2
+
+
+$$
+Igualdad de varianza (enfoque clasico)
+```{r}
+library(onewaytests)
+
+var.test(birthweight$weight ~ birthweight$gender)
+```
+Test de igualidad de media (enfoque clasico)
+```{r}
+t.test(data = birthweight, weight ~ gender, var.equal = T)
+```
+
+Con el enfoque Bayesiano: evidencia debil para H0 
+(coerencia con el p-valor obtenido con el enfoque clasico)
+```{r}
+library(BayesFactor)
+
+ttestBF(weight_males, weight_females)
+```
+
+### Estimador de Bayesiano con apriori discreta
+Apriori
+```{r}
+theta <- 2751:3350
+n_males <- length(weight_males)
+
+priors <- rep(1/length(theta), length(theta))
+```
+
+Verosimilitud
+```{r}
+sigma <- sd(weight_males)
+
+likelihood <- function(theta){
+  L <- 1
+  
+  for(i in 1:n_males){
+    L <- L*dnorm(weight_males[i], mean = theta, sd = sigma)
+  }
+  return(L)
+}
+```
+
+Aposteriori
+```{r}
+posteriors <- likelihood(theta)*priors
+posteriors <- posteriors/sum(posteriors)
+
+plot(posteriors)
+```
+Estimadores de Bayes
+- media
+```{r}
+Bayes_est_mean <- sum(posteriors*theta)
+Bayes_est_mean
+```
+- mediana 
+```{r}
+library(spatstat)
+
+weighted.median(theta, posteriors)
+```
+
+Intervalo de credibilidad
+```{r}
+library(magrittr)
+library(dplyr)
+
+z <- cbind(theta, posteriors) %>%
+  as.data.frame() %>%
+  mutate(z = cumsum(posteriors) > 0.95)
+
+head(z)
+```
+
+### Contraste de independencia
+```{r}
+premature <- ifelse(birthweight$age > 38, "prematuro", "normal")
+
+table_premature <- table(premature, birthweight$gender)
+table_premature
+
+contingencyTableBF(
+  table_premature, 
+  sampleType = "jointMulti", 
+  priorConcentration = 1
+)
+```
+

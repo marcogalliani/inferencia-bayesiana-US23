@@ -1,0 +1,129 @@
+---
+title: "Practica 2"
+output: html_document
+---
+
+$$
+\begin{align}
+
+H_0: \theta \in \Theta_0 \\
+H_1: \theta \in \Theta_1 \\
+
+
+\implies FB_{01} &= \frac{\mathbb{P}(Datos | H_0)}{\mathbb{P}(Datos | H_1)} \\
+
+& = \frac{\mathbb{P}(H_0 | Datos)}{\mathbb{P}(H_1 | Datos)} \frac{\mathbb{P}(H_1)}{\mathbb{P}(H_0)}
+
+\end{align}
+$$
+
+
+Datos
+```{r}
+pima <- read.csv("data/pima.csv", sep = ";")
+head(pima)
+
+n <- dim(pima)[1]
+```
+
+## Apartado 1: computacion de la aposteriori
+
+```{r}
+jeffrey_prior <- function(x){
+  x^(-1/2)
+}
+
+funcion_dist_jeffrey <- function(x){
+  2*x^(1/2)
+}
+
+curve(dgamma(x, shape = sum(pima$pregnant) + 1/2, rate = n), xlim = c(0,10))
+curve(jeffrey_prior(x), col = "red",add = T) #apriori de Jeffrey
+```
+
+
+## Apartado 2: estimador Bayesiano y intervalo de credibilidad
+El estimador bayesiano con funcion de perdida cuadratica es la mediana de la distribucion a posteriori
+```{r}
+muestra_sim <- rgamma(1000, shape = sum(pima$pregnant) + 1/2, rate = n)
+
+estimador_Bayes <- median(muestra_sim)
+estimador_Bayes
+
+# es mejor no simular los datos porque la distribucion es conocida. Es bastante hacer asi
+estimador_Bayes <- qgamma(0.5, shape = sum(pima$pregnant) + 1/2, rate = n)
+estimador_Bayes
+```
+
+Intervalo de credibilidad
+```{r}
+library(HDInterval)
+
+dens <- density(muestra_sim)
+hdi(dens, credMass=0.90)
+
+## sin simular
+hdi(qgamma(c(0.05, 0.95), shape = sum(pima$pregnant) + 1/2, rate = n))
+```
+
+## Apartado 3: contraste con FB
+```{r}
+curve(pgamma(x, shape = sum(pima$pregnant) + 1/2, rate = n), xlim = c(0,10))
+
+```
+
+```{r}
+# posteriors
+pp0 <- pgamma(4, shape = sum(pima$pregnant) + 1/2, rate = n)
+pp1 <- pgamma(8, shape = sum(pima$pregnant) + 1/2, rate = n) - pgamma(5, shape = sum(pima$pregnant) + 1/2, rate = n) 
+
+# priors
+p1 <- funcion_dist_jeffrey(8) - funcion_dist_jeffrey(5)
+p0 <- funcion_dist_jeffrey(4)
+
+# Factor de Bayes
+FB01 <- (pp0/pp1)*(p1/p0)
+FB01
+```
+
+## Apartado 4: distribucion predictiva
+Tenemos que limitarnos a las mujeres con test positivo, calcular los parametros de la aposteriori y clcular la distribucion predictiva
+```{r}
+test_positivo <- pima[pima$tes == 1, ]
+
+# parametros de la distribucion aposteriori
+suma_hijos <- sum(test_positivo$pregnant)
+n_mujeres <- nrow(test_positivo)
+
+y <- 0:10
+
+py <- dnbinom(y, size = suma_hijos, prob = n_mujeres/(n_mujeres+1))
+which.max(py) - 1
+```
+
+## Apartado 5: contraste de independencia
+
+¿Existen evidencias para afirmar que los niveles de glucosio han influido en el numero de embarazos?
+
+Tenemos tres tratamientos
+```{r}
+niveles <- cut(pima$glucose, breaks = c(0,120,159, Inf))
+niveles
+
+```
+
+
+En el enfoque Bayesiano: (desarollo teorico en el tema6)
+```{r}
+library(BayesFactor)
+
+tt <- table(niveles, pima$test)
+
+contingencyTableBF(tt, 
+                   sampleType = "jointMulti",
+                   priorConcentration = 1)
+```
+
+
+
+
