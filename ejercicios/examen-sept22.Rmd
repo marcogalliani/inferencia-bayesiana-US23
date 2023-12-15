@@ -1,0 +1,36 @@
+---
+title: "Bayesian Inference"
+output: html_document
+---
+
+
+```{r}
+library(LearnBayes)
+
+data("achievement")
+
+dev_known <- 17
+
+excelent_students <- as.numeric(achievement$IQ > 110)
+n_stud <- length(excelent_students)
+```
+
+Funcion de verosimilitud
+```{r}
+curve(dbeta(x, 
+            shape1 = sum(excelent_students) + 1,
+            shape2 = n_excelent_stud - sum(excelent_students) + 1))
+```
+```{r}
+stud_above120 <- as.numeric(achievement$IQ > 120)
+
+sum(stud_above120)/n_stud
+```
+
+```{r}
+good_math_score <- as.numeric(achievement$math1 > 5)
+good_read_score <- as.numeric(achievement$read2 > 15)
+
+
+```
+

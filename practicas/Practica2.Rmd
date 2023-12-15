@@ -3,20 +3,7 @@ title: "Practica 2"
 output: html_document
 ---
 
-$$
-\begin{align}
-
-H_0: \theta \in \Theta_0 \\
-H_1: \theta \in \Theta_1 \\
-
-
-\implies FB_{01} &= \frac{\mathbb{P}(Datos | H_0)}{\mathbb{P}(Datos | H_1)} \\
-
-& = \frac{\mathbb{P}(H_0 | Datos)}{\mathbb{P}(H_1 | Datos)} \frac{\mathbb{P}(H_1)}{\mathbb{P}(H_0)}
-
-\end{align}
-$$
-
+## Practica
 
 Datos
 ```{r}
@@ -26,7 +13,7 @@ head(pima)
 n <- dim(pima)[1]
 ```
 
-## Apartado 1: computacion de la aposteriori
+### Aposteriori
 
 ```{r}
 jeffrey_prior <- function(x){
@@ -42,7 +29,7 @@ curve(jeffrey_prior(x), col = "red",add = T) #apriori de Jeffrey
 ```
 
 
-## Apartado 2: estimador Bayesiano y intervalo de credibilidad
+### Estimador Bayesiano y intervalo de credibilidad
 El estimador bayesiano con funcion de perdida cuadratica es la mediana de la distribucion a posteriori
 ```{r}
 muestra_sim <- rgamma(1000, shape = sum(pima$pregnant) + 1/2, rate = n)
@@ -66,10 +53,23 @@ hdi(dens, credMass=0.90)
 hdi(qgamma(c(0.05, 0.95), shape = sum(pima$pregnant) + 1/2, rate = n))
 ```
 
-## Apartado 3: contraste con FB
+### Contraste con FB
+$$
+\begin{align}
+
+H_0: \theta \in \Theta_0 \\
+H_1: \theta \in \Theta_1 \\
+
+
+\implies FB_{01} &= \frac{\mathbb{P}(Datos | H_0)}{\mathbb{P}(Datos | H_1)} \\
+
+& = \frac{\mathbb{P}(H_0 | Datos)}{\mathbb{P}(H_1 | Datos)} \frac{\mathbb{P}(H_1)}{\mathbb{P}(H_0)}
+
+\end{align}
+$$
+
 ```{r}
 curve(pgamma(x, shape = sum(pima$pregnant) + 1/2, rate = n), xlim = c(0,10))
-
 ```
 
 ```{r}
@@ -86,7 +86,7 @@ FB01 <- (pp0/pp1)*(p1/p0)
 FB01
 ```
 
-## Apartado 4: distribucion predictiva
+### Distribucion predictiva
 Tenemos que limitarnos a las mujeres con test positivo, calcular los parametros de la aposteriori y clcular la distribucion predictiva
 ```{r}
 test_positivo <- pima[pima$tes == 1, ]
@@ -101,7 +101,7 @@ py <- dnbinom(y, size = suma_hijos, prob = n_mujeres/(n_mujeres+1))
 which.max(py) - 1
 ```
 
-## Apartado 5: contraste de independencia
+### Contraste de independencia
 
 ¿Existen evidencias para afirmar que los niveles de glucosio han influido en el numero de embarazos?
 
@@ -109,7 +109,6 @@ Tenemos tres tratamientos
 ```{r}
 niveles <- cut(pima$glucose, breaks = c(0,120,159, Inf))
 niveles
-
 ```
 
 
@@ -118,12 +117,40 @@ En el enfoque Bayesiano: (desarollo teorico en el tema6)
 library(BayesFactor)
 
 tt <- table(niveles, pima$test)
+tt
 
 contingencyTableBF(tt, 
                    sampleType = "jointMulti",
                    priorConcentration = 1)
 ```
 
+## Ejemplos
+```{r}
+alpha <- 16 
+beta <- 15174
 
+yobs <- 1
+ex <- 66
+
+ncero <- 10
+y <- 0:10
+
+py <- (gamma(alpha+yobs+1)/ gamma(alpha+yobs))*((1/gamma(y+1))*((beta+ex)/(ncero+beta+ex))**(17))*
+  ((ncero)/(ncero+beta+ex))**(y)
+pp <- sum(py)
+
+popi <- dnbinom(y,alpha+yobs,(beta+ex)/(ncero+beta+ex))
+cbind(y,round(popi,3),round(py/pp,3))
+```
+Densadidad aposteriori
+```{r}
+lambdaA=rgamma(1000, shape=alpha+yobs,rate=beta+ex)
+hist(lambdaA,freq=FALSE,main="Histograma de densidad")
+curve(dgamma(x,alpha+yobs,rate=beta+ex),add=TRUE,col="red")
+
+library(HDInterval)
+dens2 <- density(lambdaA)
+hdi(dens2, credMass=0.90)
+```
 
 

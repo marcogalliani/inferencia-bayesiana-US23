@@ -1,0 +1,51 @@
+---
+title: "Examen"
+output: html_document
+---
+
+```{r}
+library(LearnBayes)
+
+data("birthweight")
+str(birthweight)
+
+low_weight <- as.numeric(birthweight$weight < 2784)
+n_individuals <- length(low_weight)
+
+barplot(table(low_weight))
+```
+
+Distribucion apriori: Beta(3,3)
+Distribucion aposteriori: Beta(sum(x)+3, n-sum(x)+3)
+
+Intervalo credibilidad
+```{r}
+library(HDInterval)
+
+a <- 3
+b <- 3
+
+a_p <- sum(low_weight) + 3
+b_p <- n_individuals - sum(low_weight) + 3
+
+hdi(qbeta(c(0.025, 0.975), shape1 = a_p, shape2 = b_p))
+```
+Contraste de hipotesis
+```{r}
+# posteriors
+pp0 <- pbeta(0.3, a_p, b_p)
+pp1 <- 1 - pbeta(0.3, a_p, b_p)
+
+# priors
+p0 <- pbeta(0.3, a, b)
+p1 <- 1 - pbeta(0.3, a, b)
+
+# Factor de Bayes
+FB01 <- (pp0/pp1)*(p1/p0)
+FB01
+```
+
+Predictiva
+```{r}
+beta(a_p + 1, b_p)/beta(a_p, b_p)
+```

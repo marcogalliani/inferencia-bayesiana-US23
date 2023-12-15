@@ -1,8 +1,9 @@
 ---
-title: "Practica 1: modelo Beta-Binomial"
+title: "Modelo Beta-Binomial"
 output: html_document
 ---
 
+## Practica
 ```{r}
 library(LearnBayes)
 
@@ -16,18 +17,13 @@ dim(PlantGrowth)
 
 summary(PlantGrowth)
 ```
-Funcion de verosimilitud
 
-
-
-## Apartado 1: priori y aposteriori
-Apriori de Jeffrey y calculo de la aposteriori
+### Apriori y Aposteriori
 
 Apriori de Jeffrey
 $$
 \pi(p) = \frac{1}{\sqrt{p(1-p)}}
 $$
-
 Verosimilitud
 $$
 L(p|x) = p^{\sum{x_i}}(1-p)^{n-\sum{x_i}}
@@ -35,60 +31,68 @@ $$
 
 Aposteriori
 $$
-
+\pi(p|x) = p^{\sum{x_i} + \frac{1}{2}}(1-p)^{n-\sum{x_i} + \frac{1}{2}}
 $$
 
 ```{r}
-n <- length(PlantGrowth$deficientes)
-suma <- sum(PlantGrowth$deficientes == "deficiente")
+n_total <- length(PlantGrowth$deficientes)
+n_exitos <- sum(PlantGrowth$deficientes == "deficiente")
 
+a_prior <- 1/2
+b_prior <- 1/2
 
+a_posterior <- n_exitos + a_prior
+b_posterior <- n_total - n_exitos + b_prior
 
-curve(dbeta(x, shape1 = suma + 1/2, shape2 = n - suma + 1/2))
-curve(dbeta(x, shape1 = 1/2, shape2 = 1/2), col = "red",add = T) #apriori de Jeffrey
+curve(dbeta(x, shape1 = a_posterior, shape2 = b_posterior), col = "green") #aposteriori
+curve(dbeta(x, shape1 = a_prior, shape2 = b_prior), col = "red",add = T) #apriori de Jeffrey
+curve(dbeta(x, shape1 = n_exitos + 1, shape2 = n_total - n_exitos + 1), col = "blue", add = T) #verosimilitud
 ```
 
 Otros comandos
 ```{r}
-a <- 0.5
-b <- 0.5
-
-s <- 13
-f <- 17
-
-par = c(a,b)
-triplot(par, c(s,f))
+par = c(a_prior, b_prior)
+triplot(par, c(n_exitos, n_total - n_exitos))
 ```
 
 
-## Apartado 2: intervalo de credibiliad
+### Intervalo de credibilidad
+Simulando una muestra por la aposteriori
 ```{r}
 library(HDInterval)
 
-muestra=rbeta(10000, 13.5, 17.5)
+
+muestra <- rbeta(10000, a_posterior, b_posterior)
 dens <- density(muestra)
 hdi(dens, credMass=0.90)
 ```
+Como conocimos una version explicita de $F^{-1}$ es mejor no generar
+```{r}
+hdi(qbeta(c(0.05, 0.95), shape1 = a_posterior, shape2 = b_posterior), credMass = 0.90)
+```
 
-## Apartado 3: contrastes, Factor de Bayes
+
+### Contrastes, Factor de Bayes
 Usando la a priori de Jeffrey, ¿Existen evidencias para afirmar que la proporcio ́n de rendimiento deficiente es menor de 0.3? Adjuntar los comandos correspondientes.
 ```{r}
 # posteriors
-pp1 <- 1 - pbeta(0.3, a+s, f+b)
-pp0 <- pbeta(0.3, a+s, f+b)
+posterior_H0 <- pbeta(0.3, a_posterior, b_posterior)
+posterior_H1 <- 1 - pbeta(0.3, a_posterior, b_posterior)
+
 
 # priors
-p1 <- 1 - pbeta(0.3, a, b)
-p0 <- pbeta(0.3, a, b)
+prior_H0 <- pbeta(0.3, a_prior, b_prior)
+prior_H1 <- 1 - pbeta(0.3, a_prior, b_prior)
 
 # Factor de Bayes
-FB01 <- (pp0/pp1)*(p1/p0)
+FB01 <- posterior_H0/posterior_H1 * prior_H1/prior_H0
 FB01
 ```
 
-Evidencia moderada para H1 (mirando la tabla de probabilidad)
+Evidencia moderada para H1 (mirando la tabla de Jeffrey)
 
-## Apartado 4: densidad predictiva
+
+### Densidad predictiva
 Justificar y adjuntar script para calcular la probabilidad predictiva de tener al menos 5 terrenos con rendimiento deficiente de los pr ́oximos 10 que se sometan a estudio y representar en un gra ́fico la funcio ́n de probabilidad predictiva.
 
 $$
@@ -98,24 +102,21 @@ p|x \sim Be(13.5, 17.5) \\
 $$
 
 ```{r}
-ab <- c(13+a, 17+b)
-
 # modelo predictivo
 m <- 10
 ys <- 0:10
 
-pred <- pbetap(ab, m, ys)
-pred <- round(pred, 3)
+prediciones <- pbetap(c(a_posterior, b_posterior), m, ys)
 
-pp <- cbind(ys, pred)
+pp <- cbind(ys, prediciones)
 pp
 
-sum(pred[ys>4])
+sum(prediciones[ys>4])
 
-predplot(ab, 10, 5)
+predplot(c(a_posterior, b_posterior), 10, 5)
 ```
 
-## Apartado 5: test de independencia
+### Test de independencia
 ¿Existen evidencias para afirmar que los tratamientos han influido en la mejora del rendimiento de los terrenos?
 
 Tenemos tres tratamientos
@@ -130,9 +131,206 @@ En el enfoque Bayesiano: (desarollo teorico en el tema6)
 library(BayesFactor)
 
 tt <- table(PlantGrowth$deficientes, PlantGrowth$group)
+tt
+
 contingencyTableBF(tt, 
                    sampleType = "indepMulti",
                    fixedMargin = "cols",
                    priorConcentration = 1)
+```
+
+## Ejemplos
+
+### Caso discreto
+Construccion y representacion de la apriori y aposteriori
+```{r}
+par(mfrow=c(1,2)) # Para que salgan dos gráficos en la misma altura
+
+p <- seq(0.05,0.95, by=0.1) 
+
+prior <- c(2,4,8,8,4,2,1,1,1,1) 
+prior <- prior/sum(prior) 
+
+plot(p, prior, type="h", ylab="Distribution a priori")
+
+library("LearnBayes") 
+data <- c(11,16) 
+
+post <- pdisc(p,prior,data) 
+
+# pdisc es un comando para calcular la distribución
+# a posteriori de una discreta 
+cbind(p,prior,post) # cbind es un comando para unir vectores o matrices
+plot(p,post, type="h", ylab="Distribución a posteriori",col="red") 
+```
+ 
+ Estimador de Bayes
+```{r}
+# Estimador de Bayes
+
+# para la función de pérdida cuadrática
+pbayes <- sum(p*post)
+pbayes
+
+#para la función de pérdida L1
+library(spatstat)
+
+weighted.mean(p,post)
+weighted.median(p, post)
+```
+ 
+ Intervalos de credibilidad
+```{r}
+# Región de Credibilidad al 95%
+
+library(tidyverse)
+
+lo=cbind(p,prior,post)
+df=data.frame(lo)
+
+a=df%>%arrange(desc(post)) #crea una nueva ordenada según post manteniendo los casos
+
+a$postcum=cumsum(a$post)
+
+sort(a$p[which(a$postcum<0.95)])
+```
+ 
+ 
+### Caso continuo
+```{r}
+s <- 11
+f <- 16 #se supone que la a priori tiene de parámetros a y b, debido a la información existente.
+
+q1 <- list(p=.5,x=0.3) #mediana 0.3
+q2 <- list(p=.9,x=0.5) #percentil 90
+beta.select(q1,q2)
+
+a <- beta.select(q1,q2)[1]
+b <- beta.select(q1,q2)[2]
+
+# A continuación veamos ahora el efecto gráfico de transformación de la apriori en la 
+# aposteriori
+
+a <- beta.select(q1,q2)[1]
+b <- beta.select(q1,q2)[2]
+
+curve(dbeta(x,a,b),col="black",xlim=range(0,1),ylim=range(0,5.4)) #a priori
+curve(dbeta(x,s+1,f+1),col="red",xlim=range(0,1),add=T) #verosimilitud
+curve(dbeta(x,a+s,f+s),col="blue",xlim=range(0,1),add=T) #a posteriori
+
+# Los comandos siguientes hacen lo mismo, del paquete LearnBayes
+par(mfrow=c(1,1))
+par=c(a,b)
+triplot(par,c(s,f))
+```
+ 
+Factor de Bayes
+```{r}
+#Vamos a calcular el factor de Bayes para el contraste $H_0: p<0.5$ frente a $H_1:p>=0.5$
+  
+  
+pp1<-1-pbeta(0.5,a+s,f+b)
+pp0=pbeta(0.5,a+s,f+b)
+p1=1-pbeta(0.5,a,f)
+p0=pbeta(0.5,a,f)
+FB01= (pp0/pp1)/(p1/p0)
+print(FB01)
+```
+ 
+Intervalo de credibilidad
+```{r}
+#Podemos obtener también la versión de los intervalos de confianza, que en el caso Bayesiano se llaman regiones creíbles
+#si queremos una zona creíble al 95% calcularemos los cuantiles a posteriores al nivel del $5\%$ y $95\%$
+  
+rc<-qbeta(c(0.05,0.95),a+s,b+f)
+print(rc)
+
+#Para calcular el intervalo de máxima densidad (HPDI) tenemos que recurrir a simular una muestra de la densidad a posteriori y luego usar el paquete \texttt{HDInterval}. En este caso tendríamos
+
+library(HDInterval)
+muestra=rbeta(10000,a+s,b+f)
+dens <- density(muestra)
+hdi(dens, credMass=0.90)
+```
+
+Distribucion predictiva
+```{r}
+#Vemos ahora como se usaría la distribución predicitiva en el modelo beta-binomial.
+
+ab <- c(11+a,16+b) # ojo que en realidad esta es la aposteriori, que es la apriori en el 
+# modelo predictivo
+m <- 20
+ys <- 0:20
+
+pred <- pbetap(ab,m,ys)
+pred <- round(pred,3)
+
+pp <- cbind(ys,pred)
+pp
+
+predplot(ab,20,7)
+```
+
+## La distribucion Beta
+
+Caso 1: Distribuciones betas simétricas para parámetros mayores a la unidad
+```{r}
+par(mfrow=c(1,1))
+curve(dbeta(x, 1,1),xlim=range(0,1),ylim=range(0,3.2),xlab="Beta simétrica",ylab="")
+curve(dbeta(x,2,2),xlim=range(0,1),ylim=range(0,3.2), col="blue",add=T)
+curve(dbeta(x,3,3),xlim=range(0,1),ylim=range(0,3.2), col="red",add=T)
+curve(dbeta(x,4,4),xlim=range(0,1),ylim=range(0,3.2), col="violet",add=T)
+curve(dbeta(x,7,7),xlim=range(0,1),ylim=range(0,3.2), col="green",add=T)
+curve(dbeta(x,7.9,7.9),xlim=range(0,1),ylim=range(0,3.2), col="yellow",add=T)
+```
+
+Caso 2: Distribuciones betas simétricas para parámetros menores a la unidad
+```{r}
+curve(dbeta(x, 0,0),xlim=range(0,1),ylim=range(0,3.2),xlab="Beta simétrica parámetros menores a la unidad",ylab="")
+curve(dbeta(x,0.2,0.2),xlim=range(0,1),ylim=range(0,3.2), col="blue",add=T)
+curve(dbeta(x,0.3,0.3),xlim=range(0,1),ylim=range(0,3.2), col="red",add=T)
+curve(dbeta(x,0.4,0.4),xlim=range(0,1),ylim=range(0,3.2), col="violet",add=T)
+curve(dbeta(x,0.7,0.7),xlim=range(0,1),ylim=range(0,3.2), col="green",add=T)
+curve(dbeta(x,.89,.89),xlim=range(0,1),ylim=range(0,3.2), col="yellow",add=T)
+curve(dbeta(x,0.9,0.9),xlim=range(0,1),ylim=range(0,3.2), col="black",add=T)
+curve(dbeta(x,0.99,0.99),xlim=range(0,1),ylim=range(0,3.2), col="blue",add=T)
+```
+Caso 3: Distribuciones betas sesgadas a la izquierda para parámetros mayores a la unidad
+```{r}
+curve(dbeta(x, 2,1),xlim=range(0,1),ylim=range(0,7),xlab="Beta sesgada izq. b=1",ylab="")
+curve(dbeta(x,3,1),xlim=range(0,1),ylim=range(0,7), col="blue",add=T)
+curve(dbeta(x,4,1),xlim=range(0,1),ylim=range(0,7), col="red",add=T)
+curve(dbeta(x,5,1),xlim=range(0,1),ylim=range(0,7), col="violet",add=T)
+curve(dbeta(x,6,1),xlim=range(0,1),ylim=range(0,7), col="green",add=T)
+curve(dbeta(x,7.9,1),xlim=range(0,1),ylim=range(0,7), col="yellow",add=T)
+
+
+curve(dbeta(x, 3,2),xlim=range(0,1),ylim=range(0,3.5),xlab="Beta sesgada izq. b=2",ylab="")
+curve(dbeta(x,4,2),xlim=range(0,1),ylim=range(0,3.5), col="blue",add=T)
+curve(dbeta(x,5,2),xlim=range(0,1),ylim=range(0,3.5), col="red",add=T)
+curve(dbeta(x,6,2),xlim=range(0,1),ylim=range(0,3.5), col="violet",add=T)
+curve(dbeta(x,7,2),xlim=range(0,1),ylim=range(0,3.5), col="green",add=T)
+curve(dbeta(x,8,2),xlim=range(0,1),ylim=range(0,3.5), col="yellow",add=T)
+```
+Caso 4: Distribuciones betas sesgadas a la derecha para parámetros mayores a la unidad
+
+```{r}
+curve(dbeta(x, 2,3),xlim=range(0,1),ylim=range(0,3.5),xlab="Beta sesgada izq. b=2",ylab="")
+curve(dbeta(x,2,4),xlim=range(0,1),ylim=range(0,3.5), col="blue",add=T)
+curve(dbeta(x,2,5),xlim=range(0,1),ylim=range(0,3.5), col="red",add=T)
+curve(dbeta(x,2,6),xlim=range(0,1),ylim=range(0,3.5), col="violet",add=T)
+curve(dbeta(x,2,7),xlim=range(0,1),ylim=range(0,3.5), col="green",add=T)
+curve(dbeta(x,2,8),xlim=range(0,1),ylim=range(0,3.5), col="yellow",add=T)
+```
+Ejemplos numerico
+```{r}
+# Ejemplo numérico
+
+x<-rbeta(1000, 3,3)  # generamos una muestra de tamaño 1000 de una beta a=3, b=3
+hist(x,freq=FALSE)  # Representamos el histograma de densidad de la muestra
+curve(dbeta(x,2,2),add=T) # vemos el ajuste a una beta(2,2)
+aa<-function(a){mean(x)-a/(a+3)} # A partir de los datos estimamos el primer parámetro suponiendo b=3
+xx<-uniroot(aa,lower=0,upper=100) # Resuelve la ecuación del primer parámetro en términos de la media
+curve(dbeta(x,xx$root,3),col="red",add=T)  # Ajusta la curva estimada
 ```
 

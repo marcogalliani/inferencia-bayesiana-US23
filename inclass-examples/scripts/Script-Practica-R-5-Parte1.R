@@ -127,8 +127,6 @@ gg
   
 
 #A continuación seleccionamos una normal a priori con la información de los percentiles que se dispone.
-
-
 n=length(time)
 media=mean(time)
 q1=list(p=0.1,x=190)
